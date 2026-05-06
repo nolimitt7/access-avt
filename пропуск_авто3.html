@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Перевірка доступу на територію</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Inter:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #0f0f0f; color: #e8e8e8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem 3rem; }
+  header { text-align: center; margin-bottom: 2.5rem; }
+  header .logo { font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #666; margin-bottom: 10px; }
+  header h1 { font-family: 'Oswald', sans-serif; font-size: 32px; font-weight: 600; letter-spacing: 1px; color: #fff; }
+  header p { font-size: 13px; color: #999; margin-top: 6px; }
+  .status-bar { font-size: 12px; color: #777; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #555; display: inline-block; flex-shrink: 0; }
+  .status-dot.ok { background: #4ade80; }
+  .status-dot.err { background: #f87171; }
+  .status-dot.loading { background: #facc15; animation: blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .search-wrap { width: 100%; max-width: 520px; margin-bottom: 2rem; }
+  .plate-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #555; margin-bottom: 8px; }
+  .search-row { display: flex; gap: 10px; }
+  #plateInput { flex: 1; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-family: 'Oswald', sans-serif; font-size: 28px; font-weight: 400; letter-spacing: 4px; padding: 14px 18px; text-transform: uppercase; outline: none; transition: border-color 0.2s; }
+  #plateInput::placeholder { color: #333; }
+  #plateInput:focus { border-color: #555; }
+  #checkBtn { background: #e8e8e8; border: none; border-radius: 6px; color: #0f0f0f; cursor: pointer; font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 2px; padding: 14px 22px; text-transform: uppercase; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
+  #checkBtn:hover { background: #fff; }
+  #checkBtn:active { transform: scale(0.97); }
+  #checkBtn:disabled { background: #333; color: #666; cursor: not-allowed; }
+  .result-box { width: 100%; max-width: 520px; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 2rem; display: none; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .result-box.allow { background: #0d3d2a; border: 1px solid #1a6644; }
+  .result-box.deny { background: #3d0d0d; border: 1px solid #661a1a; }
+  .result-box.unknown { background: #1a1a1a; border: 1px solid #333; }
+  .result-status { font-family: 'Oswald', sans-serif; font-size: 36px; font-weight: 600; letter-spacing: 2px; margin-bottom: 6px; }
+  .result-box.allow .result-status { color: #4ade80; }
+  .result-box.deny .result-status { color: #f87171; }
+  .result-box.unknown .result-status { color: #888; }
+  .result-plate-display { font-family: 'Oswald', sans-serif; font-size: 22px; letter-spacing: 4px; }
+  .result-box.allow .result-plate-display { color: #86efac; }
+  .result-box.deny .result-plate-display { color: #fca5a5; }
+  .result-box.unknown .result-plate-display { color: #666; }
+  .result-icon { font-size: 44px; margin-bottom: 10px; line-height: 1; }
+  .lists-wrap { width: 100%; max-width: 520px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .list-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 1rem; }
+  .list-title { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .list-title.green { color: #4ade80; }
+  .list-title.red { color: #f87171; }
+  .list-title::before { content: ''; width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .list-title.green::before { background: #4ade80; }
+  .list-title.red::before { background: #f87171; }
+  .plate-chip { font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: 1.5px; padding: 5px 8px; border-radius: 4px; margin-bottom: 4px; cursor: pointer; transition: opacity 0.15s; }
+  .plate-chip:hover { opacity: 0.75; }
+  .plate-chip.green { background: #0d2d1e; color: #4ade80; }
+  .plate-chip.red { background: #2d0d0d; color: #f87171; }
+  .empty-list { font-size: 12px; color: #444; font-style: italic; }
+  .hint { font-size: 12px; color: #888; text-align: center; margin-top: 1rem; }
+  .reload-btn { background: none; border: 1px solid #333; border-radius: 4px; color: #666; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 1px; padding: 4px 10px; margin-top: 10px; transition: border-color 0.2s, color 0.2s; }
+  .reload-btn:hover { border-color: #555; color: #999; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Система контролю доступу</div>
+  <h1>Перевірка транспорту</h1>
+  <p>Введіть номер автомобіля для перевірки доступу</p>
+  <div class="status-bar">
+    <span class="status-dot loading" id="statusDot"></span>
+    <span id="statusText">Завантаження бази...</span>
+  </div>
+  <button class="reload-btn" onclick="loadData()">&#8635; Оновити базу</button>
+</header>
+
+<div class="search-wrap">
+  <div class="plate-label">Номерний знак</div>
+  <div class="search-row">
+    <input type="text" id="plateInput" placeholder="АА1234ВВ" maxlength="10"
+      oninput="this.value=this.value.toUpperCase()"
+      onkeydown="if(event.key==='Enter') check()" />
+    <button id="checkBtn" onclick="check()" disabled>Перевірити</button>
+  </div>
+</div>
+
+<div class="result-box" id="resultBox">
+  <div class="result-icon" id="resultIcon"></div>
+  <div class="result-status" id="resultStatus"></div>
+  <div class="result-plate-display" id="resultPlateDisplay"></div>
+</div>
+
+<div class="lists-wrap">
+  <div class="list-card">
+    <div class="list-title green">Білий список</div>
+    <div id="whiteList"><span class="empty-list">Завантаження...</span></div>
+  </div>
+  <div class="list-card">
+    <div class="list-title red">Червоний список</div>
+    <div id="redList"><span class="empty-list">Завантаження...</span></div>
+  </div>
+</div>
+
+<p class="hint">Натисніть на номер у списку, щоб перевірити його</p>
+
+<script>
+  const SHEET_ID = '1Pv57l2fd_hTIOiQ8BHn3aij-doLiK2j8x3OGP5REdaM';
+
+  let white = [];
+  let red = [];
+
+  function loadData() {
+    setStatus('loading', 'Завантаження бази...');
+    document.getElementById('checkBtn').disabled = true;
+    document.getElementById('whiteList').innerHTML = '<span class="empty-list">Завантаження...</span>';
+    document.getElementById('redList').innerHTML = '<span class="empty-list">Завантаження...</span>';
+
+    // Використовуємо JSONP через script tag — обходить CORS повністю
+    var callbackName = 'gsCallback_' + Date.now();
+    var script = document.createElement('script');
+    var timeout = setTimeout(function() {
+      setStatus('err', 'Помилка: таймаут. Перевірте підключення до інтернету.');
+      document.getElementById('whiteList').innerHTML = '<span class="empty-list">Помилка</span>';
+      document.getElementById('redList').innerHTML = '<span class="empty-list">Помилка</span>';
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }, 10000);
+
+    window[callbackName] = function(data) {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+
+      try {
+        var rows = data.table.rows;
+        white = [];
+        red = [];
+
+        rows.forEach(function(row) {
+          var w = row.c[0] ? String(row.c[0].v || '').trim().toUpperCase() : '';
+          var r = row.c[1] ? String(row.c[1].v || '').trim().toUpperCase() : '';
+          if (w && w !== 'WHITE') white.push(w);
+          if (r && r !== 'RED') red.push(r);
+        });
+
+        renderList('whiteList', white, 'green');
+        renderList('redList', red, 'red');
+        document.getElementById('checkBtn').disabled = false;
+
+        var now = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit'});
+        setStatus('ok', 'База оновлена о ' + now + ' \u00b7 ' + white.length + ' дозволено \u00b7 ' + red.length + ' заборонено');
+      } catch(e) {
+        setStatus('err', 'Помилка обробки даних: ' + e.message);
+        console.error(e);
+      }
+    };
+
+    script.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+      '/gviz/tq?tqx=out:json&tq=select%20A%2CB&callback=' + callbackName + '&_=' + Date.now();
+    script.onerror = function() {
+      clearTimeout(timeout);
+      setStatus('err', 'Помилка завантаження. Перевірте доступ до таблиці.');
+      document.getElementById('whiteList').innerHTML = '<span class="empty-list">Помилка</span>';
+      document.getElementById('redList').innerHTML = '<span class="empty-list">Помилка</span>';
+      delete window[callbackName];
+    };
+    document.head.appendChild(script);
+  }
+
+  function setStatus(type, text) {
+    document.getElementById('statusDot').className = 'status-dot ' + type;
+    document.getElementById('statusText').textContent = text;
+  }
+
+  function renderList(containerId, plates, cls) {
+    var el = document.getElementById(containerId);
+    if (!plates.length) {
+      el.innerHTML = '<span class="empty-list">Список порожній</span>';
+      return;
+    }
+    el.innerHTML = plates.map(function(p) {
+      return '<div class="plate-chip ' + cls + '" onclick="setAndCheck(\'' + p + '\')">' + p + '</div>';
+    }).join('');
+  }
+
+  function setAndCheck(plate) {
+    document.getElementById('plateInput').value = plate;
+    check();
+  }
+
+  function check() {
+    var val = document.getElementById('plateInput').value.trim().toUpperCase();
+    var box = document.getElementById('resultBox');
+    var icon = document.getElementById('resultIcon');
+    var status = document.getElementById('resultStatus');
+    var plateDisplay = document.getElementById('resultPlateDisplay');
+
+    if (!val) return;
+
+    box.style.display = 'block';
+    box.style.animation = 'none';
+    void box.offsetWidth;
+    box.style.animation = '';
+    plateDisplay.textContent = val;
+
+    if (white.indexOf(val) !== -1) {
+      box.className = 'result-box allow';
+      icon.textContent = '\u2705';
+      status.textContent = "\u0412'\u0407\u0417\u0414 \u0414\u041e\u0417\u0412\u041e\u041b\u0415\u041d\u041e";
+    } else if (red.indexOf(val) !== -1) {
+      box.className = 'result-box deny';
+      icon.textContent = '\uD83D\uDEAB';
+      status.textContent = "\u0412'\u0407\u0417\u0414 \u0417\u0410\u0411\u041e\u0420\u041e\u041d\u0415\u041d\u041e";
+    } else {
+      box.className = 'result-box unknown';
+      icon.textContent = '\u2753';
+      status.textContent = "\u041D\u041e\u041c\u0415\u0420 \u041d\u0415 \u0417\u041d\u0410\u0419\u0414\u0415\u041d\u041e";
+    }
+
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  loadData();
+</script>
+</body>
+</html>
