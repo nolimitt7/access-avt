@@ -102,67 +102,48 @@
 <p class="hint">Натисніть на номер у списку, щоб перевірити його</p>
 
 <script>
-  const SHEET_ID = '1Pv57l2fd_hTIOiQ8BHn3aij-doLiK2j8x3OGP5REdaM';
+  const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOgEgEBhvPuOgZY2I8OokX17rkc0O9SrgTO30x4DpS4MeQXtox3x3snEzxoRmi-Qv0iaisLvLn-tG3/pub?gid=0&single=true&output=csv';
 
   let white = [];
   let red = [];
 
-  function loadData() {
+  async function loadData() {
     setStatus('loading', 'Завантаження бази...');
     document.getElementById('checkBtn').disabled = true;
     document.getElementById('whiteList').innerHTML = '<span class="empty-list">Завантаження...</span>';
     document.getElementById('redList').innerHTML = '<span class="empty-list">Завантаження...</span>';
 
-    // Використовуємо JSONP через script tag — обходить CORS повністю
-    var callbackName = 'gsCallback_' + Date.now();
-    var script = document.createElement('script');
-    var timeout = setTimeout(function() {
-      setStatus('err', 'Помилка: таймаут. Перевірте підключення до інтернету.');
-      document.getElementById('whiteList').innerHTML = '<span class="empty-list">Помилка</span>';
-      document.getElementById('redList').innerHTML = '<span class="empty-list">Помилка</span>';
-      delete window[callbackName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }, 10000);
+    try {
+      const res = await fetch(CSV_URL + '&cachebust=' + Date.now());
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
 
-    window[callbackName] = function(data) {
-      clearTimeout(timeout);
-      delete window[callbackName];
-      if (script.parentNode) script.parentNode.removeChild(script);
+      white = [];
+      red = [];
 
-      try {
-        var rows = data.table.rows;
-        white = [];
-        red = [];
-
-        rows.forEach(function(row) {
-          var w = row.c[0] ? String(row.c[0].v || '').trim().toUpperCase() : '';
-          var r = row.c[1] ? String(row.c[1].v || '').trim().toUpperCase() : '';
-          if (w && w !== 'WHITE') white.push(w);
-          if (r && r !== 'RED') red.push(r);
-        });
-
-        renderList('whiteList', white, 'green');
-        renderList('redList', red, 'red');
-        document.getElementById('checkBtn').disabled = false;
-
-        var now = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit'});
-        setStatus('ok', 'База оновлена о ' + now + ' \u00b7 ' + white.length + ' дозволено \u00b7 ' + red.length + ' заборонено');
-      } catch(e) {
-        setStatus('err', 'Помилка обробки даних: ' + e.message);
-        console.error(e);
+      const rows = text.trim().split('\n');
+      // Пропускаємо перший рядок (заголовки)
+      for (let i = 1; i < rows.length; i++) {
+        const cols = rows[i].split(',');
+        const w = (cols[0] || '').replace(/"/g, '').trim().toUpperCase();
+        const r = (cols[1] || '').replace(/"/g, '').trim().toUpperCase();
+        if (w) white.push(w);
+        if (r) red.push(r);
       }
-    };
 
-    script.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-      '/gviz/tq?tqx=out:json&tq=select%20A%2CB&callback=' + callbackName + '&_=' + Date.now();
-    script.onerror = function() {
-      clearTimeout(timeout);
-      setStatus('err', 'Помилка завантаження. Перевірте доступ до таблиці.');
+      renderList('whiteList', white, 'green');
+      renderList('redList', red, 'red');
+      document.getElementById('checkBtn').disabled = false;
+
+      const now = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit'});
+      setStatus('ok', 'База оновлена о ' + now + ' \u00b7 ' + white.length + ' дозволено \u00b7 ' + red.length + ' заборонено');
+
+    } catch(e) {
+      setStatus('err', 'Помилка завантаження: ' + e.message);
       document.getElementById('whiteList').innerHTML = '<span class="empty-list">Помилка</span>';
       document.getElementById('redList').innerHTML = '<span class="empty-list">Помилка</span>';
-      delete window[callbackName];
-    };
-    document.head.appendChild(script);
+      console.error(e);
+    }
   }
 
   function setStatus(type, text) {
