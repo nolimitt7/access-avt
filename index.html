@@ -20,6 +20,7 @@
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
   .search-wrap { width: 100%; max-width: 520px; margin-bottom: 2rem; }
   .plate-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #555; margin-bottom: 8px; }
+  .search-hint { font-size: 12px; color: #444; margin-bottom: 8px; }
   .search-row { display: flex; gap: 10px; }
   #plateInput { flex: 1; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-family: 'Oswald', sans-serif; font-size: 28px; font-weight: 400; letter-spacing: 4px; padding: 14px 18px; text-transform: uppercase; outline: none; transition: border-color 0.2s; }
   #plateInput::placeholder { color: #333; }
@@ -28,7 +29,9 @@
   #checkBtn:hover { background: #fff; }
   #checkBtn:active { transform: scale(0.97); }
   #checkBtn:disabled { background: #333; color: #666; cursor: not-allowed; }
-  .result-box { width: 100%; max-width: 520px; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 2rem; display: none; animation: fadeIn 0.25s ease; }
+
+  /* Результат одного авто */
+  .result-box { width: 100%; max-width: 520px; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1rem; display: none; animation: fadeIn 0.25s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
   .result-box.allow { background: #0d3d2a; border: 1px solid #1a6644; }
   .result-box.unknown { background: #1a1a1a; border: 1px solid #333; }
@@ -42,6 +45,15 @@
   .info-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #555; flex-shrink: 0; }
   .info-value { font-family: 'Oswald', sans-serif; font-size: 16px; letter-spacing: 1px; color: #e8e8e8; text-align: right; }
   .info-value.plate { font-size: 20px; letter-spacing: 3px; color: #4ade80; }
+
+  /* Список кількох результатів */
+  .multi-box { width: 100%; max-width: 520px; margin-bottom: 1rem; display: none; animation: fadeIn 0.25s ease; }
+  .multi-title { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 10px; }
+  .multi-item { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+  .multi-item:hover { border-color: #4ade80; }
+  .multi-plate { font-family: 'Oswald', sans-serif; font-size: 18px; letter-spacing: 3px; color: #4ade80; margin-bottom: 4px; }
+  .multi-sub { font-size: 13px; color: #777; }
+
   .reload-btn { background: none; border: 1px solid #333; border-radius: 4px; color: #666; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 1px; padding: 4px 10px; margin-top: 10px; transition: border-color 0.2s, color 0.2s; }
   .reload-btn:hover { border-color: #555; color: #999; }
   .count-bar { font-size: 12px; color: #555; margin-top: 1.5rem; text-align: center; }
@@ -61,14 +73,16 @@
 
 <div class="search-wrap">
   <div class="plate-label">Номерний знак</div>
+  <div class="search-hint">Можна вводити тільки цифри, наприклад: <b style="color:#777">1312</b></div>
   <div class="search-row">
-    <input type="text" id="plateInput" placeholder="АА1234ВВ" maxlength="10"
+    <input type="text" id="plateInput" placeholder="1312 або АА1234ВВ" maxlength="10"
       oninput="this.value=this.value.toUpperCase()"
       onkeydown="if(event.key==='Enter') check()" />
-    <button id="checkBtn" onclick="check()" disabled>Перевірити</button>
+    <button id="checkBtn" onclick="check()" disabled>Знайти</button>
   </div>
 </div>
 
+<!-- Один результат -->
 <div class="result-box" id="resultBox">
   <div class="result-icon" id="resultIcon"></div>
   <div class="result-status" id="resultStatus"></div>
@@ -92,46 +106,41 @@
   </div>
 </div>
 
+<!-- Кілька результатів -->
+<div class="multi-box" id="multiBox">
+  <div class="multi-title" id="multiTitle"></div>
+  <div id="multiList"></div>
+</div>
+
 <div class="count-bar" id="countBar"></div>
 
 <script>
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOgEgEBhvPuOgZY2I8OokX17rkc0O9SrgTO30x4DpS4MeQXtox3x3snEzxoRmi-Qv0iaisLvLn-tG3/pub?gid=0&single=true&output=csv';
 
-  // База: { "КА1234ВВ": { marka, pib, group } }
-  var db = {};
+  var db = {}; // { "КА1234ВВ": { marka, pib, group } }
 
   async function loadData() {
     setStatus('loading', 'Завантаження бази...');
     document.getElementById('checkBtn').disabled = true;
     db = {};
-
     try {
       const res = await fetch(CSV_URL + '&cachebust=' + Date.now());
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
-
       const rows = text.trim().split('\n');
-      // Перший рядок — заголовки, пропускаємо
       for (var i = 1; i < rows.length; i++) {
-        // Розбиваємо CSV правильно (враховуємо коми всередині лапок)
         var cols = parseCSVRow(rows[i]);
-        // Колонки: A(індекс), B(номер), C(марка), D(піб), E(група)
         var plate = (cols[1] || '').replace(/"/g, '').trim().toUpperCase();
         var marka = (cols[2] || '').replace(/"/g, '').trim();
         var pib   = (cols[3] || '').replace(/"/g, '').trim();
         var group = (cols[4] || '').replace(/"/g, '').trim();
-        if (plate) {
-          db[plate] = { marka: marka, pib: pib, group: group };
-        }
+        if (plate) db[plate] = { marka: marka, pib: pib, group: group };
       }
-
       var count = Object.keys(db).length;
       document.getElementById('checkBtn').disabled = false;
       document.getElementById('countBar').textContent = 'В базі: ' + count + ' автомобілів';
-
       var now = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit'});
       setStatus('ok', 'База оновлена о ' + now);
-
     } catch(e) {
       setStatus('err', 'Помилка завантаження: ' + e.message);
       console.error(e);
@@ -139,9 +148,7 @@
   }
 
   function parseCSVRow(row) {
-    var result = [];
-    var cur = '';
-    var inQuotes = false;
+    var result = [], cur = '', inQuotes = false;
     for (var i = 0; i < row.length; i++) {
       var ch = row[i];
       if (ch === '"') { inQuotes = !inQuotes; }
@@ -159,37 +166,89 @@
 
   function check() {
     var val = document.getElementById('plateInput').value.trim().toUpperCase();
+    if (!val) return;
+
+    // Витягуємо тільки цифри з введеного
+    var digits = val.replace(/\D/g, '');
+
+    var matches = [];
+
+    if (digits && digits === val) {
+      // Введено тільки цифри — шукаємо по цифрах у всіх номерах
+      Object.keys(db).forEach(function(plate) {
+        var plateDigits = plate.replace(/\D/g, '');
+        if (plateDigits.indexOf(digits) !== -1) matches.push(plate);
+      });
+    } else {
+      // Введено повний номер (або мікс) — точний пошук
+      if (db[val]) matches = [val];
+    }
+
+    // Ховаємо обидва блоки
+    document.getElementById('resultBox').style.display = 'none';
+    document.getElementById('multiBox').style.display = 'none';
+
+    if (matches.length === 0) {
+      showSingle(null, val);
+    } else if (matches.length === 1) {
+      showSingle(matches[0], matches[0]);
+    } else {
+      showMulti(matches);
+    }
+  }
+
+  function showSingle(plate, inputVal) {
     var box = document.getElementById('resultBox');
     var icon = document.getElementById('resultIcon');
     var status = document.getElementById('resultStatus');
     var info = document.getElementById('resultInfo');
-
-    if (!val) return;
 
     box.style.display = 'block';
     box.style.animation = 'none';
     void box.offsetWidth;
     box.style.animation = '';
 
-    var entry = db[val];
-
-    if (entry) {
+    if (plate && db[plate]) {
+      var entry = db[plate];
       box.className = 'result-box allow';
       icon.textContent = '\u2705';
-      status.textContent = "\u0414\u041e\u0421\u0422\u0423\u041f \u0414\u041e\u0417\u0412\u041e\u041b\u0415\u041d\u041e";
+      status.textContent = '\u0414\u041e\u0421\u0422\u0423\u041f \u0414\u041e\u0417\u0412\u041e\u041b\u0415\u041d\u041e';
       info.style.display = 'block';
-      document.getElementById('infoPlate').textContent = val;
-      document.getElementById('infoMarka').textContent = entry.marka || '—';
-      document.getElementById('infoPib').textContent = entry.pib || '—';
-      document.getElementById('infoGroup').textContent = entry.group || '—';
+      document.getElementById('infoPlate').textContent = plate;
+      document.getElementById('infoMarka').textContent = entry.marka || '\u2014';
+      document.getElementById('infoPib').textContent = entry.pib || '\u2014';
+      document.getElementById('infoGroup').textContent = entry.group || '\u2014';
     } else {
       box.className = 'result-box unknown';
       icon.textContent = '\u274C';
-      status.textContent = "\u041D\u041e\u041c\u0415\u0420 \u041d\u0415 \u0417\u041d\u0410\u0419\u0414\u0415\u041d\u041e";
+      status.textContent = '\u041D\u041e\u041c\u0415\u0420 \u041d\u0415 \u0417\u041d\u0410\u0419\u0414\u0415\u041d\u041e';
       info.style.display = 'none';
     }
-
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function showMulti(plates) {
+    var box = document.getElementById('multiBox');
+    document.getElementById('multiTitle').textContent = '\u0417\u043d\u0430\u0439\u0434\u0435\u043d\u043e ' + plates.length + ' \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0456\u043b\u0456 \u2014 \u0432\u0438\u0431\u0435\u0440\u0456\u0442\u044c \u043f\u043e\u0442\u0440\u0456\u0431\u043d\u0438\u0439:';
+    var list = document.getElementById('multiList');
+    list.innerHTML = plates.map(function(plate) {
+      var e = db[plate];
+      return '<div class="multi-item" onclick="selectPlate(\'' + plate + '\')">' +
+        '<div class="multi-plate">' + plate + '</div>' +
+        '<div class="multi-sub">' + (e.marka || '') + (e.pib ? ' &nbsp;&middot;&nbsp; ' + e.pib : '') + '</div>' +
+        '</div>';
+    }).join('');
+    box.style.display = 'block';
+    box.style.animation = 'none';
+    void box.offsetWidth;
+    box.style.animation = '';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function selectPlate(plate) {
+    document.getElementById('plateInput').value = plate;
+    document.getElementById('multiBox').style.display = 'none';
+    showSingle(plate, plate);
   }
 
   loadData();
