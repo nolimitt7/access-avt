@@ -31,33 +31,20 @@
   .result-box { width: 100%; max-width: 520px; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 2rem; display: none; animation: fadeIn 0.25s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
   .result-box.allow { background: #0d3d2a; border: 1px solid #1a6644; }
-  .result-box.deny { background: #3d0d0d; border: 1px solid #661a1a; }
   .result-box.unknown { background: #1a1a1a; border: 1px solid #333; }
-  .result-status { font-family: 'Oswald', sans-serif; font-size: 36px; font-weight: 600; letter-spacing: 2px; margin-bottom: 6px; }
-  .result-box.allow .result-status { color: #4ade80; }
-  .result-box.deny .result-status { color: #f87171; }
-  .result-box.unknown .result-status { color: #888; }
-  .result-plate-display { font-family: 'Oswald', sans-serif; font-size: 22px; letter-spacing: 4px; }
-  .result-box.allow .result-plate-display { color: #86efac; }
-  .result-box.deny .result-plate-display { color: #fca5a5; }
-  .result-box.unknown .result-plate-display { color: #666; }
   .result-icon { font-size: 44px; margin-bottom: 10px; line-height: 1; }
-  .lists-wrap { width: 100%; max-width: 520px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .list-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 1rem; }
-  .list-title { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-  .list-title.green { color: #4ade80; }
-  .list-title.red { color: #f87171; }
-  .list-title::before { content: ''; width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-  .list-title.green::before { background: #4ade80; }
-  .list-title.red::before { background: #f87171; }
-  .plate-chip { font-family: 'Oswald', sans-serif; font-size: 13px; letter-spacing: 1.5px; padding: 5px 8px; border-radius: 4px; margin-bottom: 4px; cursor: pointer; transition: opacity 0.15s; }
-  .plate-chip:hover { opacity: 0.75; }
-  .plate-chip.green { background: #0d2d1e; color: #4ade80; }
-  .plate-chip.red { background: #2d0d0d; color: #f87171; }
-  .empty-list { font-size: 12px; color: #444; font-style: italic; }
-  .hint { font-size: 12px; color: #888; text-align: center; margin-top: 1rem; }
+  .result-status { font-family: 'Oswald', sans-serif; font-size: 32px; font-weight: 600; letter-spacing: 2px; margin-bottom: 16px; }
+  .result-box.allow .result-status { color: #4ade80; }
+  .result-box.unknown .result-status { color: #888; }
+  .result-info { text-align: left; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 1rem 1.2rem; }
+  .info-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 12px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #555; flex-shrink: 0; }
+  .info-value { font-family: 'Oswald', sans-serif; font-size: 16px; letter-spacing: 1px; color: #e8e8e8; text-align: right; }
+  .info-value.plate { font-size: 20px; letter-spacing: 3px; color: #4ade80; }
   .reload-btn { background: none; border: 1px solid #333; border-radius: 4px; color: #666; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 1px; padding: 4px 10px; margin-top: 10px; transition: border-color 0.2s, color 0.2s; }
   .reload-btn:hover { border-color: #555; color: #999; }
+  .count-bar { font-size: 12px; color: #555; margin-top: 1.5rem; text-align: center; }
 </style>
 </head>
 <body>
@@ -85,65 +72,84 @@
 <div class="result-box" id="resultBox">
   <div class="result-icon" id="resultIcon"></div>
   <div class="result-status" id="resultStatus"></div>
-  <div class="result-plate-display" id="resultPlateDisplay"></div>
+  <div class="result-info" id="resultInfo" style="display:none">
+    <div class="info-row">
+      <span class="info-label">Номер</span>
+      <span class="info-value plate" id="infoPlate"></span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Марка</span>
+      <span class="info-value" id="infoMarka"></span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Власник</span>
+      <span class="info-value" id="infoPib"></span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Підрозділ</span>
+      <span class="info-value" id="infoGroup"></span>
+    </div>
+  </div>
 </div>
 
-<div class="lists-wrap">
-  <div class="list-card">
-    <div class="list-title green">Білий список</div>
-    <div id="whiteList"><span class="empty-list">Завантаження...</span></div>
-  </div>
-  <div class="list-card">
-    <div class="list-title red">Червоний список</div>
-    <div id="redList"><span class="empty-list">Завантаження...</span></div>
-  </div>
-</div>
-
-<p class="hint">Натисніть на номер у списку, щоб перевірити його</p>
+<div class="count-bar" id="countBar"></div>
 
 <script>
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOgEgEBhvPuOgZY2I8OokX17rkc0O9SrgTO30x4DpS4MeQXtox3x3snEzxoRmi-Qv0iaisLvLn-tG3/pub?gid=0&single=true&output=csv';
 
-  let white = [];
-  let red = [];
+  // База: { "КА1234ВВ": { marka, pib, group } }
+  var db = {};
 
   async function loadData() {
     setStatus('loading', 'Завантаження бази...');
     document.getElementById('checkBtn').disabled = true;
-    document.getElementById('whiteList').innerHTML = '<span class="empty-list">Завантаження...</span>';
-    document.getElementById('redList').innerHTML = '<span class="empty-list">Завантаження...</span>';
+    db = {};
 
     try {
       const res = await fetch(CSV_URL + '&cachebust=' + Date.now());
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
 
-      white = [];
-      red = [];
-
       const rows = text.trim().split('\n');
-      // Пропускаємо перший рядок (заголовки)
-      for (let i = 1; i < rows.length; i++) {
-        const cols = rows[i].split(',');
-        const w = (cols[0] || '').replace(/"/g, '').trim().toUpperCase();
-        const r = (cols[1] || '').replace(/"/g, '').trim().toUpperCase();
-        if (w) white.push(w);
-        if (r) red.push(r);
+      // Перший рядок — заголовки, пропускаємо
+      for (var i = 1; i < rows.length; i++) {
+        // Розбиваємо CSV правильно (враховуємо коми всередині лапок)
+        var cols = parseCSVRow(rows[i]);
+        // Колонки: A(індекс), B(номер), C(марка), D(піб), E(група)
+        var plate = (cols[1] || '').replace(/"/g, '').trim().toUpperCase();
+        var marka = (cols[2] || '').replace(/"/g, '').trim();
+        var pib   = (cols[3] || '').replace(/"/g, '').trim();
+        var group = (cols[4] || '').replace(/"/g, '').trim();
+        if (plate) {
+          db[plate] = { marka: marka, pib: pib, group: group };
+        }
       }
 
-      renderList('whiteList', white, 'green');
-      renderList('redList', red, 'red');
+      var count = Object.keys(db).length;
       document.getElementById('checkBtn').disabled = false;
+      document.getElementById('countBar').textContent = 'В базі: ' + count + ' автомобілів';
 
-      const now = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit'});
-      setStatus('ok', 'База оновлена о ' + now + ' \u00b7 ' + white.length + ' дозволено \u00b7 ' + red.length + ' заборонено');
+      var now = new Date().toLocaleTimeString('uk-UA', {hour:'2-digit', minute:'2-digit'});
+      setStatus('ok', 'База оновлена о ' + now);
 
     } catch(e) {
       setStatus('err', 'Помилка завантаження: ' + e.message);
-      document.getElementById('whiteList').innerHTML = '<span class="empty-list">Помилка</span>';
-      document.getElementById('redList').innerHTML = '<span class="empty-list">Помилка</span>';
       console.error(e);
     }
+  }
+
+  function parseCSVRow(row) {
+    var result = [];
+    var cur = '';
+    var inQuotes = false;
+    for (var i = 0; i < row.length; i++) {
+      var ch = row[i];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur);
+    return result;
   }
 
   function setStatus(type, text) {
@@ -151,28 +157,12 @@
     document.getElementById('statusText').textContent = text;
   }
 
-  function renderList(containerId, plates, cls) {
-    var el = document.getElementById(containerId);
-    if (!plates.length) {
-      el.innerHTML = '<span class="empty-list">Список порожній</span>';
-      return;
-    }
-    el.innerHTML = plates.map(function(p) {
-      return '<div class="plate-chip ' + cls + '" onclick="setAndCheck(\'' + p + '\')">' + p + '</div>';
-    }).join('');
-  }
-
-  function setAndCheck(plate) {
-    document.getElementById('plateInput').value = plate;
-    check();
-  }
-
   function check() {
     var val = document.getElementById('plateInput').value.trim().toUpperCase();
     var box = document.getElementById('resultBox');
     var icon = document.getElementById('resultIcon');
     var status = document.getElementById('resultStatus');
-    var plateDisplay = document.getElementById('resultPlateDisplay');
+    var info = document.getElementById('resultInfo');
 
     if (!val) return;
 
@@ -180,20 +170,23 @@
     box.style.animation = 'none';
     void box.offsetWidth;
     box.style.animation = '';
-    plateDisplay.textContent = val;
 
-    if (white.indexOf(val) !== -1) {
+    var entry = db[val];
+
+    if (entry) {
       box.className = 'result-box allow';
       icon.textContent = '\u2705';
-      status.textContent = "\u0412'\u0407\u0417\u0414 \u0414\u041e\u0417\u0412\u041e\u041b\u0415\u041d\u041e";
-    } else if (red.indexOf(val) !== -1) {
-      box.className = 'result-box deny';
-      icon.textContent = '\uD83D\uDEAB';
-      status.textContent = "\u0412'\u0407\u0417\u0414 \u0417\u0410\u0411\u041e\u0420\u041e\u041d\u0415\u041d\u041e";
+      status.textContent = "\u0414\u041e\u0421\u0422\u0423\u041f \u0414\u041e\u0417\u0412\u041e\u041b\u0415\u041d\u041e";
+      info.style.display = 'block';
+      document.getElementById('infoPlate').textContent = val;
+      document.getElementById('infoMarka').textContent = entry.marka || '—';
+      document.getElementById('infoPib').textContent = entry.pib || '—';
+      document.getElementById('infoGroup').textContent = entry.group || '—';
     } else {
       box.className = 'result-box unknown';
-      icon.textContent = '\u2753';
+      icon.textContent = '\u274C';
       status.textContent = "\u041D\u041e\u041c\u0415\u0420 \u041d\u0415 \u0417\u041d\u0410\u0419\u0414\u0415\u041d\u041e";
+      info.style.display = 'none';
     }
 
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
